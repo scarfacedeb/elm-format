@@ -56,45 +56,52 @@ parens :: Box -> Box
 parens = surround '(' ')'
 
 
-formatBinary :: Bool -> Box -> [ ( Box, Box ) ] -> Box
+formatBinary :: Bool -> Box -> [ ( Bool, Box, Box ) ] -> Box
 formatBinary multiline left ops =
-    case
-        ( ops
-        , multiline
-        , left
-        , allSingles $ map fst ops
-        , allSingles $ map snd ops
-        )
-    of
-        ([], _, _, _, _) ->
-            pleaseReport "INVALID BINARY EXPRESSION" "no operators"
+    case ops of
+        [] ->
+            left
 
-        (_, False, SingleLine left', Right ops'', Right exprs') ->
-            zip ops'' exprs'
-                |> map (\(op,e) -> row [op, space, e])
-                |> List.intersperse space
-                |> (:) space
-                |> (:) left'
-                |> row
-                |> line
+        ( isLeftPipe, op, next ) : rest ->
+            case
+                ( isLeftPipe, multiline, left, op, next )
+            of
+                ( _, False, SingleLine left', SingleLine op', SingleLine next' ) ->
+                    formatBinary
+                        multiline
+                        (line $ row [ left', space, op', space, next' ])
+                        rest
 
-        _ ->
-            let
-                formatOp (op, e) =
-                  case (op, e) of
-                      (SingleLine op', SingleLine e') ->
-                          line $ row [ op', space, e' ]
+                ( True, _, SingleLine left', SingleLine op', _ ) ->
+                    stack1
+                        [ line $ row [ left', space, op' ]
+                        , indent $ formatBinary multiline next rest
+                        ]
 
-                      (SingleLine op', _) | lineLength 0 op' < 4 ->
-                          prefix (row [ op', space ]) e
+                ( True, _, _, _, _ ) ->
+                    stack1
+                        [ left
+                        , op
+                        , indent $ formatBinary multiline next rest
+                        ]
 
-                      _ ->
-                          stack1 [ op , indent e ]
-            in
-                ops
-                    |> map formatOp
-                    |> stack1
-                    |> (\body -> stack1 [left, indent body])
+                ( False, _, _, SingleLine op', SingleLine _ ) ->
+                    formatBinary
+                        multiline
+                        (stack1 [ left, indent $ prefix (row [ op', space ]) next])
+                        rest
+
+                ( False, _, _, SingleLine op', _ ) | lineLength 0 op' < 4 ->
+                    formatBinary
+                        multiline
+                        (stack1 [left, indent $ prefix (row [ op', space ]) next])
+                        rest
+
+                ( False, _, _, _, _ ) ->
+                    formatBinary
+                        multiline
+                        (stack1 [ left, indent op, indent $ indent next ])
+                        rest
 
 
 splitWhere :: (a -> Bool) -> [a] -> [[a]]
@@ -765,7 +772,7 @@ formatPattern parensRequired apattern =
               formatBinary
                   False
                   first'
-                  (map ((,) (line $ punc "::")) (rest'++[final']))
+                  (map ((,,) False (line $ punc "::")) (rest'++[final']))
               |> if parensRequired then parens else id
 
         AST.Pattern.Data ctor [] ->
@@ -777,7 +784,7 @@ formatPattern parensRequired apattern =
 
         AST.Pattern.Data ctor patterns ->
             ElmStructure.application
-                False
+                (FAJoinFirst JoinAll)
                 (line $ identifier ctor)
                 (map (formatHeadCommented $ formatPattern True) patterns)
             |> if parensRequired then parens else id
@@ -873,7 +880,8 @@ formatExpression aexpr =
         AST.Expression.Binops left ops multiline ->
             let
                 formatPair ( po, o, pe, e ) =
-                    ( formatCommented' po (line . formatInfixVar) o
+                    ( o == AST.Variable.OpRef "<|"
+                    , formatCommented' po (line . formatInfixVar) o
                     , formatCommented' pe formatExpression e
                     )
             in
@@ -1391,7 +1399,7 @@ formatType' requireParens atype =
 
         TypeConstruction ctor args ->
             ElmStructure.application
-                False
+                (FAJoinFirst JoinAll)
                 (formatTypeConstructor ctor)
                 (map (formatHeadCommented $ formatType' ForCtor) args)
                 |> (if requireParens == ForCtor then parens else id)

@@ -33,12 +33,34 @@ infixApplicationMultiline =
             ]
 
 
+infixPipeLeft =
+    x <|
+        [ y
+        , z
+        ]
+
+
+infixPipeLeft2 =
+    [ x
+    ]
+    <|
+        [ y
+        , z
+        ]
+
+
 functionApplication =
     max 1 2
 
 
-functionApplicationMultiline =
+functionApplicationMultilineWithFirstArg =
     max 1
+        2
+
+
+functionApplicationMultiline =
+    max
+        1
         2
 
 

@@ -2,12 +2,12 @@ module ElmFormat.Render.ElmStructureTest where
 
 import Elm.Utils ((|>))
 
-import Test.HUnit (Assertion, assertEqual)
-import Test.Framework
-import Test.Framework.Providers.HUnit
+import Test.Tasty
+import Test.Tasty.HUnit
 import qualified Data.Text.Lazy as LazyText
 import qualified Data.Text as Text
 
+import AST.V0_16
 import Box
 import ElmFormat.Render.ElmStructure
 
@@ -48,12 +48,12 @@ block text =
         w = identifier text
 
 
-tests :: Test
+tests :: TestTree
 tests =
     testGroup "ElmFormat.Render.ElmStructure"
     [ testCase "application (single line)" $
         assertOutput "a b c\n" $
-            application False (word "a" )
+            application (FAJoinFirst JoinAll) (word "a" )
                 $ map word [ "b", "c" ]
     , testCase "application (multiline)" $
         assertOutput
@@ -65,7 +65,7 @@ tests =
                 , "    c"
                 ]
             ) $
-            application False
+            application (FAJoinFirst JoinAll)
                 ( block "a" )
                 [ block "b"
                 , line $ identifier "c"
