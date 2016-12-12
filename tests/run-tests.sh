@@ -4,9 +4,17 @@
 #shellcheck "./build-package.sh" || exit 1
 #shellcheck "./package/linux/build-package.sh" || exit 1
 
-cabal build || exit 1
+stack build || exit 1
 
-ELM_FORMAT="./dist/build/elm-format-0.17/elm-format-0.17"
+ELM_FORMAT="`stack path --local-install-root`/bin/elm-format-0.18"
+if [ ! -e "$ELM_FORMAT" ]; then
+	echo "$0: ERROR: $ELM_FORMAT not found" >&2
+	exit 1
+fi
+echo "Testing $ELM_FORMAT"
+cp "$ELM_FORMAT" tests/elm-format
+ELM_FORMAT="tests/elm-format"
+
 if which md5 > /dev/null; then
 	MD5="md5"
 else
@@ -17,9 +25,8 @@ function returnCodeShouldEqual() {
 	[ "$?" -eq "$1" ] || exit 1
 }
 
-function shouldOutputTheSame() {
-	echo "$1" "$2"
-	diff <(echo "$1") <(echo "$2") || exit 1
+function shouldOutputTheSameIgnoringEol() {
+	diff -u --ignore-space-change <(echo "$1" | sed -e 's/\.exe//') <(echo "$2" | sed -e 's/\.exe//') || exit 1
 }
 
 function outputShouldRoughlyMatchPatterns() {
@@ -58,19 +65,22 @@ function checkWaysToRun() {
 	echo "# WAYS TO RUN"
 	echo
 
+	HELP=$(cat tests/ElmFormat/CliTest/Usage.stdout)
+
 	echo "## elm-format --help"
-	HELP=$("$ELM_FORMAT" --help 2>&1)
+	LONGHELP=$("$ELM_FORMAT" --help 2>&1)
 	returnCodeShouldEqual 0
+	shouldOutputTheSameIgnoringEol "$HELP" "$LONGHELP"
 
 	echo "## elm-format -h"
 	SHORTHELP=$("$ELM_FORMAT" -h 2>&1)
 	returnCodeShouldEqual 0
-	shouldOutputTheSame "$HELP" "$SHORTHELP"
+	shouldOutputTheSameIgnoringEol "$HELP" "$SHORTHELP"
 
 	echo "## elm-format"
 	NOARGS=$("$ELM_FORMAT" 2>&1)
 	returnCodeShouldEqual 0
-	shouldOutputTheSame "$HELP" "$NOARGS"
+	shouldOutputTheSameIgnoringEol "$HELP" "$NOARGS"
 
 	echo "## elm-format INPUT --validate does not change things"
 	"$ELM_FORMAT" "$INPUT_2" --validate 1>/dev/null
@@ -199,13 +209,27 @@ function checkBad() {
 }
 
 function checkTransformation() {
-	INPUT="tests/test-files/transform/$1"
+	ELM_VERSION="$1"
+	INPUT="tests/test-files/transform/$2"
 	OUTPUT="formatted.elm"
-	EXPECTED="tests/test-files/transform/${1%.*}.formatted.elm"
+	EXPECTED="tests/test-files/transform/${2%.*}.formatted.elm"
 
 	echo
-	echo "## transform/$1"
-	time "$ELM_FORMAT" "$INPUT" --output "$OUTPUT" --elm-version 0.16 1>/dev/null
+	echo "## transform/$2"
+	time "$ELM_FORMAT" "$INPUT" --output "$OUTPUT" --elm-version "$ELM_VERSION" 1>/dev/null
+	returnCodeShouldEqual 0
+	compareFiles "$EXPECTED" "$OUTPUT"
+}
+
+function checkUpgrade() {
+	ELM_VERSION="$1"
+	INPUT="tests/test-files/transform/$2"
+	OUTPUT="formatted.elm"
+	EXPECTED="tests/test-files/transform/${2%.*}.formatted.elm"
+
+	echo
+	echo "## transform/$2"
+	time "$ELM_FORMAT" "$INPUT" --output "$OUTPUT" --upgrade --elm-version "$ELM_VERSION" 1>/dev/null
 	returnCodeShouldEqual 0
 	compareFiles "$EXPECTED" "$OUTPUT"
 }
@@ -233,6 +257,10 @@ checkGood 0.16 ApiSketch.elm
 checkGoodAllSyntax 0.17 Module
 checkGoodAllSyntax 0.17 ModuleEffect
 
+checkGood 0.18 TrueFalseInIdentifiers.elm
+checkGood 0.18 TopLevelSpacing.elm
+checkGood 0.18 WorkaroundNegativeCasePatterns.elm
+
 checkGood 0.16 evancz/start-app/StartApp.elm
 checkGood 0.16 TheSeamau5/elm-check/Check.elm
 checkGood 0.16 rtfeldman/dreamwriter/Editor.elm
@@ -252,17 +280,22 @@ checkBad Empty.elm
 checkBad UnexpectedComma.elm
 checkBad UnexpectedEndOfInput.elm
 
-checkTransformation Examples.elm
-checkTransformation TrickyModule1.elm
-checkTransformation TrickyModule2.elm
-checkTransformation TrickyModule3.elm
-checkTransformation TrickyModule4.elm
-checkTransformation LenientEqualsColon.elm
-checkTransformation github-avh4-elm-format-184.elm
-checkTransformation QuickCheck-4562ebccb71ea9f622fb99cdf32b2923f6f9d34f-2529668492575674138.elm
-checkTransformation QuickCheck-94f37da84c1310f03dcfa1059ce870b73c94a825--6449652945938213463.elm
+checkTransformation 0.16 Examples.elm
+checkTransformation 0.16 TrickyModule1.elm
+checkTransformation 0.16 TrickyModule2.elm
+checkTransformation 0.16 TrickyModule3.elm
+checkTransformation 0.16 TrickyModule4.elm
+checkTransformation 0.16 LenientEqualsColon.elm
+checkTransformation 0.16 github-avh4-elm-format-184.elm
+checkTransformation 0.16 QuickCheck-4562ebccb71ea9f622fb99cdf32b2923f6f9d34f-2529668492575674138.elm
+checkTransformation 0.16 QuickCheck-94f37da84c1310f03dcfa1059ce870b73c94a825--6449652945938213463.elm
+checkUpgrade 0.18 Elm-0.18/PrimesBecomeUnderscores.elm
+checkUpgrade 0.18 Elm-0.18/RangesBecomeListRange.elm
+checkUpgrade 0.18 Elm-0.18/BackticksBecomeFunctionCalls.elm
+checkUpgrade 0.18 Elm-0.18/SpecialBackticksBecomePipelines.elm
+checkUpgrade 0.18 Elm-0.18/RenameTupleFunctions.elm
 
 echo
 echo "# GREAT SUCCESS!"
 
-cabal test --test-options="--hide-successes --color auto" || exit 1
+stack test --test-arguments="--hide-successes --color auto" || exit 1

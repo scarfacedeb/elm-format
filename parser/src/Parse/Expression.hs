@@ -23,15 +23,14 @@ import qualified Reporting.Annotation as A
 
 varTerm :: IParser E.Expr'
 varTerm =
-  boolean <|> ((\x -> E.Var $ Var.VarRef x) <$> var)
-
-
-boolean :: IParser E.Expr'
-boolean =
-  let t = const (Boolean True) <$> string "True"
-      f = const (Boolean False) <$> string "False"
-  in
-    E.Literal <$> try (t <|> f)
+    let
+        resolve v =
+            case v of
+                Var.TagRef [] (UppercaseIdentifier "True") -> E.Literal $ Boolean True
+                Var.TagRef [] (UppercaseIdentifier "False") -> E.Literal $ Boolean False
+                _ -> E.VarExpr v
+    in
+        resolve <$> var
 
 
 accessor :: IParser E.Expr'
@@ -96,7 +95,7 @@ parensTerm =
     ]
   where
     opFn =
-      E.Var <$> anyOp
+      E.VarExpr <$> anyOp
 
     tupleFn =
       do  commas <- many1 comma
@@ -132,7 +131,7 @@ recordTerm =
       do  try (string "|")
           postBar <- whitespace
           fields <- commaSep1 field
-          return $ \pre post multiline -> (E.RecordUpdate (Commented pre (A.A ann $ E.Var $ Var.VarRef starter) postStarter) (fields postBar post) multiline)
+          return $ \pre post multiline -> (E.RecordUpdate (Commented pre (A.A ann $ E.VarExpr $ Var.VarRef [] starter) postStarter) (fields postBar post) multiline)
 
     literal (A.A _ starter) postStarter =
       do
@@ -325,7 +324,7 @@ typeAnnotation fn =
     (\(v, pre, post) e -> fn (v, pre) (post, e)) <$> try start <*> Type.expr
   where
     start =
-      do  v <- (Var.VarRef <$> lowVar) <|> parens' symOp
+      do  v <- (Var.VarRef [] <$> lowVar) <|> parens' (Var.OpRef <$> symOp)
           (preColon, _, postColon) <- padded hasType
           return (v, preColon, postColon)
 
@@ -347,14 +346,17 @@ defStart =
     choice
       [ do  pattern <- try Pattern.term
             func pattern
-      , do  opPattern <- addLocation (P.Var <$> parens' symOp)
+      , do  opPattern <- addLocation (P.OpPattern <$> parens' symOp)
             func opPattern
       ]
       <?> "the definition of a variable (x = ...)"
   where
     func pattern =
         case pattern of
-          A.A _ (P.Var _) ->
+          A.A _ (P.VarPattern _) ->
+              ((,) pattern) <$> spacePrefix Pattern.term
+
+          A.A _ (P.OpPattern _) ->
               ((,) pattern) <$> spacePrefix Pattern.term
 
           _ ->

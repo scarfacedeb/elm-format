@@ -19,6 +19,7 @@ data Config = Config
     , _validate :: Bool
     , _stdin :: Bool
     , _elmVersion :: ElmVersion
+    , _upgrade :: Bool
     }
 
 
@@ -85,6 +86,7 @@ flags defaultVersion =
       <*> validate
       <*> stdin
       <*> elmVersion defaultVersion
+      <*> upgrade
 
 
 
@@ -95,14 +97,14 @@ helpInfo defaultVersion =
     mconcat
         [ Opt.fullDesc
         , Opt.header top
-        , Opt.progDesc "Format an Elm source file."
+        , Opt.progDesc "Format Elm source files."
         , Opt.footerDoc (Just examples)
         ]
   where
     top =
         concat
             [ "elm-format-" ++ show defaultVersion ++ " "
-            , showVersion This.version ++ "\n"
+            , showVersion This.version  ++ "-alpha" ++ "\n"
             ]
 
     examples =
@@ -110,6 +112,7 @@ helpInfo defaultVersion =
         [ "Examples:"
         , "  elm-format Main.elm                     # formats Main.elm"
         , "  elm-format Main.elm --output Main2.elm  # formats Main.elm as Main2.elm"
+        , "  elm-format src/                         # format all *.elm files in the src directory"
         , ""
         , "Full guide to using elm-format at <https://github.com/avh4/elm-format>"
         ]
@@ -179,7 +182,16 @@ elmVersion defaultVersion =
             [ "The Elm version of the source files being formatted.  "
             , "Valid values: "
             , show ElmVersion.Elm_0_16 ++ ", "
-            , show ElmVersion.Elm_0_17 ++ ".  "
+            , show ElmVersion.Elm_0_17 ++ ", "
+            , show ElmVersion.Elm_0_18 ++ ".  "
             , "Default: " ++ show defaultVersion
             ]
       ]
+
+upgrade :: Opt.Parser Bool
+upgrade =
+    Opt.switch $
+        mconcat
+        [ Opt.long "upgrade"
+        , Opt.help "Upgrade older Elm files to Elm 0.18 syntax"
+        ]

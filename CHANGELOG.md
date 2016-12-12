@@ -1,3 +1,31 @@
+## 0.5.2-alpha
+
+Bug fixes:
+  - When upgrading backticks, parentheses are correctly added if the second argument is a function call
+  - Added a workaround for an elm-compiler bug where patterns with literal negative numbers cannot be used without parentheses in case expressions
+
+
+## 0.5.1-alpha
+
+Bug fixes:
+  - When upgrading ranges to `List.range`, parentheses are correctly added if the range is used as a function call argument
+  - Correctly space top-level declarations that use pattern destructuring
+
+
+## 0.5.0-alpha
+
+Support for Elm 0.18:
+  - Added the `--upgrade` option to help migration code from Elm 0.17 to Elm 0.18
+    - Infix function calls using backticks become normal functions calls
+    - Infix function calls using backticks with `andThen` and `onError` become pipelines
+    - Ranges become calls to `List.range`
+    - Primes in variable names become underscores
+    - References to `fst` and `snd` become `Tuple.first` and `Tuple.second`
+
+Bug fixes:
+  - Type tags starting with `True` and `False` are now handled correctly
+
+
 ## 0.4.0-alpha
 
 Syntax changes:

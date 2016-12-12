@@ -10,8 +10,9 @@ vagrant winrm -c "dir"
 
 # Open VirtualBox and show the Windows VM
 
-# Download and install Haskell Platform (64-bit)
+# Download and install Haskell Stack (64-bit)
 
+stack setup
 choco install devbox-common
 choco install poshgit
 #choco install sourcetree
@@ -26,7 +27,6 @@ choco install poshgit
 
 ```bash
 cd /c/vagrant/elm-format
-cabal update
 /c/vagrant/build-package.sh
 ```
 
